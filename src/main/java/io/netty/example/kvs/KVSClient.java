@@ -53,7 +53,7 @@ public final class KVSClient {
 
         EventLoopGroup group = new NioEventLoopGroup();
         try {
-            final Map<Long, KVSResult> latches = new ConcurrentHashMap<Long, KVSResult>();
+            final Map<Long, KVSResult> signals = new ConcurrentHashMap<Long, KVSResult>();
             Bootstrap b = new Bootstrap();
             b.group(group)
              .channel(NioSocketChannel.class)
@@ -67,7 +67,7 @@ public final class KVSClient {
                     p.addLast(
                             new ObjectEncoder(),
                             new ObjectDecoder(ClassResolvers.cacheDisabled(null)),
-                            new KVSClientHandler(latches));
+                            new KVSClientHandler(signals));
                 }
              });
 
@@ -77,23 +77,28 @@ public final class KVSClient {
             for (int i = 1; i <= 100; i++) {
                 KVSRequest kvsRequest = KVSRequest.newWriteRequest(format("key_%d", i), format("val_%d", i));
                 KVSResult kvsResult = new KVSResult();
-                latches.put(kvsRequest.getReqId(), kvsResult);
+                signals.put(kvsRequest.getReqId(), kvsResult);
                 ch.writeAndFlush(kvsRequest).sync();
                 System.out.println("Waiting for response of write request...");
-                kvsResult.getLatch().await();
-                System.out.println("Response received: " + kvsResult.getKvsResponse().getResponse());
-                latches.remove(kvsRequest.getReqId());
+                String response = kvsResult.getKvsResponse().getResponse();
+                System.out.println("Response received: " + response);
+                signals.remove(kvsRequest.getReqId());
             }
 
             for (int i = 1; i <= 100; i++) {
-                KVSRequest kvsRequest = KVSRequest.newReadRequest(format("key_%d", i));
+                String key = format("key_%d", i);
+                KVSRequest kvsRequest = KVSRequest.newReadRequest(key);
                 KVSResult kvsResult = new KVSResult();
-                latches.put(kvsRequest.getReqId(), kvsResult);
+                signals.put(kvsRequest.getReqId(), kvsResult);
                 ch.writeAndFlush(kvsRequest).sync();
                 System.out.println("Waiting for response of read request...");
-                kvsResult.getLatch().await();
-                System.out.println("Response received: " + kvsResult.getKvsResponse().getResponse());
-                latches.remove(kvsRequest.getReqId());
+                String response = kvsResult.getKvsResponse().getResponse();
+                System.out.println("Response received: " + response);
+                int value = Integer.parseInt(response.substring(response.indexOf('_') + 1).trim());
+                if (value != i) {
+                    throw new IllegalStateException(format("mismatch for key: %s, got value: %s", key, value));
+                }
+                signals.remove(kvsRequest.getReqId());
             }
 
             ch.closeFuture().sync();

@@ -20,6 +20,8 @@ import io.netty.channel.SimpleChannelInboundHandler;
 
 import java.util.Map;
 
+import static java.lang.String.format;
+
 /**
  * Handler implementation for the object echo client.  It initiates the
  * ping-pong traffic between the object echo client and server by sending the
@@ -27,16 +29,19 @@ import java.util.Map;
  */
 public final class KVSClientHandler extends SimpleChannelInboundHandler<KVSResponse> {
 
-    private final Map<Long, KVSResult> latches;
+    private final Map<Long, KVSResult> signals;
 
-    public KVSClientHandler(Map<Long, KVSResult> latches) {
-        this.latches = latches;
+    public KVSClientHandler(Map<Long, KVSResult> signals) {
+        this.signals = signals;
     }
 
     @Override
-    protected void channelRead0(ChannelHandlerContext channelHandlerContext, KVSResponse kvsResponse) throws Exception {
+    protected void channelRead0(ChannelHandlerContext channelHandlerContext, KVSResponse kvsResponse) {
         Long reqId = kvsResponse.getReqId();
-        KVSResult kvsResult = latches.get(reqId);
+        KVSResult kvsResult = signals.get(reqId);
+        if (kvsResult == null) {
+            throw new IllegalStateException(format("result holder not found for request ID: %d", reqId));
+        }
         kvsResult.setKvsResponse(kvsResponse);
     }
 

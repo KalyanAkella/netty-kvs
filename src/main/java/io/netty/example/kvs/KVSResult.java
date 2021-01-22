@@ -26,11 +26,8 @@ public final class KVSResult {
         this.latch = new CountDownLatch(1);
     }
 
-    public CountDownLatch getLatch() {
-        return latch;
-    }
-
-    public KVSResponse getKvsResponse() {
+    public KVSResponse getKvsResponse() throws InterruptedException {
+        this.latch.await();
         return kvsResponse;
     }
 
